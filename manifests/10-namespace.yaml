@@ -1,0 +1,10 @@
+# 一個 Data Science Project 就是一個 namespace（對應 Day 6）。
+#
+# ⚠️ 沒有 opendatahub.io/dashboard 這個 label，dashboard 上看不到這個 project——
+#    而畫面上不會說原因，它只是不顯示。這是新手最常卡的第一關。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-serve-demo
+  labels:
+    opendatahub.io/dashboard: "true"

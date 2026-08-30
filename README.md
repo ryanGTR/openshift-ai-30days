@@ -3,6 +3,8 @@
 [**《OpenShift AI 入門 30 天》**](https://ryangtr.github.io/) 這個系列用到的 YAML、
 Containerfile 與腳本。**每一份都在文章裡出現過，這裡是可以直接拿去跑的版本。**
 
+> 🚀 **第一次要架起來 → [INSTALL.md](INSTALL.md)**（12 步，每步附驗證指令）
+>
 > 📖 **這個 repo 只有檔案，沒有說明為什麼。**
 > 每份檔案的來由、要驗什麼、會踩到什麼，都寫在對應的文章裡——
 > 下面的 Day 對照表每一列都連過去。
@@ -18,7 +20,7 @@ Containerfile 與腳本。**每一份都在文章裡出現過，這裡是可以�
 
 ## 先做這件事
 
-檔案裡的主機名是佔位符，換成你自己的：
+**完整流程看 [INSTALL.md](INSTALL.md)。** 只想改檔案的話，先換主機名：
 
 ```bash
 ./set-lab-host.sh <registry:port> <s3-host:port>
@@ -48,12 +50,14 @@ grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . \
 
 | Day | 主題（← 點進去看說明） | 檔案 |
 |---|---|---|
-| 5 | [DataScienceCluster](https://ryangtr.github.io/2026/09/datasciencecluster-turning-components-on/) | `manifests/dsc.yaml` |
-| 7 | [Connection（S3）](https://ryangtr.github.io/2026/09/connect-your-storage/) | `manifests/connection-s3.yaml` |
-| 9 | [Data Science Pipeline](https://ryangtr.github.io/2026/09/your-first-data-science-pipeline/) | `pipeline/pipeline_llm.py`、`pipeline/pipeline_llm.yaml`、`images/Containerfile.train` |
-| 10 | [InferenceService](https://ryangtr.github.io/2026/09/deploy-a-model-with-inferenceservice/) | `manifests/isvc-llm.yaml`、`images/Containerfile.cpu` |
+| 5 | [DataScienceCluster](https://ryangtr.github.io/2026/09/datasciencecluster-turning-components-on/) | `manifests/00-dsc.yaml` |
+| 6 | [Dashboard 導覽](https://ryangtr.github.io/2026/09/dashboard-tour/) | `manifests/10-namespace.yaml`（⚠️ 少了 label 就看不到） |
+| 7 | [Connection（S3）](https://ryangtr.github.io/2026/09/connect-your-storage/) | `manifests/11-secrets.yaml` |
+| 9 | [Data Science Pipeline](https://ryangtr.github.io/2026/09/your-first-data-science-pipeline/) | `manifests/30-dspa.yaml`、`pipeline/`、`images/Containerfile.train` |
+| 10 | [InferenceService](https://ryangtr.github.io/2026/09/deploy-a-model-with-inferenceservice/) | `manifests/20-isvc-llm.yaml`、`manifests/12-serviceaccount.yaml`、`images/Containerfile.cpu` |
 | 16 | [監控](https://ryangtr.github.io/2026/09/monitoring-your-model-service/) | `gitops/monitoring/` |
-| 19 | [離線環境 / mirror](https://ryangtr.github.io/2026/09/airgapped-images/) | `manifests/idms-odh-workbench.yaml` |
+| 19 | [離線環境 / mirror](https://ryangtr.github.io/2026/09/airgapped-images/) | `manifests/90-idms-odh-workbench.yaml` |
+| 21 | [憑證與機敏資料](https://ryangtr.github.io/2026/09/secrets-on-the-platform/) | `manifests/11-secrets.yaml`（⚠️ 填好就別進版控） |
 | 24 | [GitOps](https://ryangtr.github.io/2026/09/gitops-for-the-platform/) | `gitops/monitoring/kustomization.yaml` |
 | 25 | [怎麼寫驗收清單](https://ryangtr.github.io/2026/09/writing-acceptance-criteria/) | `scripts/collect-evidence.sh` |
 | 26 | [綠燈不等於做完](https://ryangtr.github.io/2026/09/green-is-not-done/) | 同上（⚠️ 檢查工具本身也要被檢查） |
@@ -72,12 +76,14 @@ grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . \
 ## 目錄
 
 ```
-manifests/                  單獨 apply 的資源
-  dsc.yaml                  平台元件總開關
-  connection-s3.yaml        S3 連線（貼了 label 的 Secret）
-  dspa.yaml                 Data Science Pipelines 實例
-  isvc-llm.yaml             模型服務（KServe，自帶容器）
-  idms-odh-workbench.yaml   image mirror（離線用）
+manifests/                  數字＝apply 的順序
+  00-dsc.yaml               平台元件總開關（cluster-scoped）
+  10-namespace.yaml         project ＋ dashboard label
+  11-secrets.yaml           S3 ×2 ＋ registry 憑證（🔴 有 CHANGE_ME）
+  12-serviceaccount.yaml    llm-sa（⭐ 最容易漏的一份，見檔內說明）
+  20-isvc-llm.yaml          模型服務（KServe，自帶容器）
+  30-dspa.yaml              Data Science Pipelines 實例
+  90-idms-odh-workbench.yaml  image mirror（離線才需要）
 
 gitops/monitoring/          kustomize，可直接給 Argo CD
   prometheus.yaml grafana.yaml kustomization.yaml

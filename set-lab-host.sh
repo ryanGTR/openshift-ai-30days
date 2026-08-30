@@ -18,7 +18,8 @@ S3_HOST="${S3%:*}"
 cd "$(dirname "$0")"
 
 # 只改文字檔，跳過 .git
-mapfile -t FILES < <(git ls-files 2>/dev/null || find . -type f -not -path './.git/*')
+# ⚠️ 不要用 git ls-files——還沒 git add 的檔案會被默默跳過（我踩過）。
+mapfile -t FILES < <(find . -type f -not -path './.git/*')
 
 for f in "${FILES[@]}"; do
   [ -f "$f" ] || continue
