@@ -1,7 +1,11 @@
 # OpenShift AI 入門 30 天 — lab 檔案
 
-[《OpenShift AI 入門 30 天》](https://ryangtr.github.io/) 這個系列用到的 YAML、
+[**《OpenShift AI 入門 30 天》**](https://ryangtr.github.io/) 這個系列用到的 YAML、
 Containerfile 與腳本。**每一份都在文章裡出現過，這裡是可以直接拿去跑的版本。**
+
+> 📖 **這個 repo 只有檔案，沒有說明為什麼。**
+> 每份檔案的來由、要驗什麼、會踩到什麼，都寫在對應的文章裡——
+> 下面的 Day 對照表每一列都連過去。
 
 環境：**OpenShift Local (CRC) 2.63.0** · OpenShift 4.22.7 · Kubernetes v1.35.6 ·
 **Open Data Hub 3.5.0** · 13 vCPU / 40 GiB / 120 GB · 單節點、無 GPU。
@@ -36,17 +40,28 @@ grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . \
 
 ## Day 對照表
 
-| Day | 主題 | 檔案 |
+**每份檔案都有一篇文章在解釋它為什麼長這樣、以及套用之後要驗什麼。**
+
+| Day | 主題（← 點進去看說明） | 檔案 |
 |---|---|---|
-| 5 | DataScienceCluster | `manifests/dsc.yaml` |
-| 7 | Connection（S3） | `manifests/connection-s3.yaml` |
-| 9 | Data Science Pipeline | `pipeline/pipeline_llm.py`、`pipeline/pipeline_llm.yaml`、`images/Containerfile.train` |
-| 10 | InferenceService | `manifests/isvc-llm.yaml`、`images/Containerfile.cpu` |
-| 16 | 監控 | `gitops/monitoring/` |
-| 19 | 離線環境 / mirror | `manifests/idms-odh-workbench.yaml` |
-| 24 | GitOps | `gitops/monitoring/kustomization.yaml` |
-| 25、26 | 驗收證據 | `scripts/collect-evidence.sh` |
-| 27 | 放行閘門 | `pipeline/pipeline_llm.py` 的 `GATE` 段 |
+| 5 | [DataScienceCluster](https://ryangtr.github.io/2026/09/datasciencecluster-turning-components-on/) | `manifests/dsc.yaml` |
+| 7 | [Connection（S3）](https://ryangtr.github.io/2026/09/connect-your-storage/) | `manifests/connection-s3.yaml` |
+| 9 | [Data Science Pipeline](https://ryangtr.github.io/2026/09/your-first-data-science-pipeline/) | `pipeline/pipeline_llm.py`、`pipeline/pipeline_llm.yaml`、`images/Containerfile.train` |
+| 10 | [InferenceService](https://ryangtr.github.io/2026/09/deploy-a-model-with-inferenceservice/) | `manifests/isvc-llm.yaml`、`images/Containerfile.cpu` |
+| 16 | [監控](https://ryangtr.github.io/2026/09/monitoring-your-model-service/) | `gitops/monitoring/` |
+| 19 | [離線環境 / mirror](https://ryangtr.github.io/2026/09/airgapped-images/) | `manifests/idms-odh-workbench.yaml` |
+| 24 | [GitOps](https://ryangtr.github.io/2026/09/gitops-for-the-platform/) | `gitops/monitoring/kustomization.yaml` |
+| 25 | [怎麼寫驗收清單](https://ryangtr.github.io/2026/09/writing-acceptance-criteria/) | `scripts/collect-evidence.sh` |
+| 26 | [綠燈不等於做完](https://ryangtr.github.io/2026/09/green-is-not-done/) | 同上（⚠️ 檢查工具本身也要被檢查） |
+| 27 | [放行閘門](https://ryangtr.github.io/2026/09/gates-before-production/) | `pipeline/pipeline_llm.py` 的 `GATE` 段 |
+
+**沒有對應檔案、但值得先讀的幾篇**：
+[Day 3 這些用 podman 做不行嗎](https://ryangtr.github.io/2026/09/do-you-even-need-openshift/)（要不要導入）·
+[Day 4 裝機](https://ryangtr.github.io/2026/09/install-openshift-ai-on-a-laptop/) ·
+[Day 22 一個 PoC 要多少機器](https://ryangtr.github.io/2026/09/sizing-a-poc/)（實測數字）·
+[Day 23 3.x 與 2.x](https://ryangtr.github.io/2026/09/version-strategy-3x/)（判斷手上的教學是哪個版本）
+
+[**→ 30 篇完整目錄**](https://ryangtr.github.io/)
 
 ---
 
@@ -120,3 +135,8 @@ MIT。
 
 發現哪裡寫錯、或你的環境行為不一樣，
 歡迎開 issue —— 我會查、會改、會在文章裡標明是誰指出的。
+
+---
+
+📖 **文章**：<https://ryangtr.github.io>
+🧪 **模型**：<https://github.com/ryanGTR/llm-from-scratch>
