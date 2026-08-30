@@ -24,7 +24,8 @@ Containerfile 與腳本。**每一份都在文章裡出現過，這裡是可以�
 然後確認沒有漏的：
 
 ```bash
-grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . || echo ok
+grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . \
+  --exclude=set-lab-host.sh --exclude=README.md || echo ok
 ```
 
 ⚠️ 腳本換不掉的三件事：S3 帳密（`manifests/connection-s3.yaml` 的 `CHANGE_ME`）、
@@ -41,7 +42,6 @@ grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . || echo ok
 | 7 | Connection（S3） | `manifests/connection-s3.yaml` |
 | 9 | Data Science Pipeline | `pipeline/pipeline_llm.py`、`pipeline/pipeline_llm.yaml`、`images/Containerfile.train` |
 | 10 | InferenceService | `manifests/isvc-llm.yaml`、`images/Containerfile.cpu` |
-| 13 | Hardware Profile / GPU | `manifests/hardware-profile-gpu.yaml` |
 | 16 | 監控 | `gitops/monitoring/` |
 | 19 | 離線環境 / mirror | `manifests/idms-odh-workbench.yaml` |
 | 24 | GitOps | `gitops/monitoring/kustomization.yaml` |
@@ -58,7 +58,6 @@ manifests/                  單獨 apply 的資源
   connection-s3.yaml        S3 連線（貼了 label 的 Secret）
   dspa.yaml                 Data Science Pipelines 實例
   isvc-llm.yaml             模型服務（KServe，自帶容器）
-  hardware-profile-gpu.yaml 資源上限
   idms-odh-workbench.yaml   image mirror（離線用）
 
 gitops/monitoring/          kustomize，可直接給 Argo CD
@@ -98,7 +97,8 @@ podman build -f openshift-ai-30days/images/Containerfile.cpu \
 ## 三個先講清楚的限制
 
 1. **單節點、無 GPU。** 排程、HA、跨節點網路、真實負載的表現，這個 lab 驗不出來。
-   GPU 相關的檔案（`hardware-profile-gpu.yaml`）是寫出來的，我沒有卡可以實測。
+   **所以這裡沒有 GPU 相關的 manifest** —— 我沒有卡可以實測，不放沒驗過的東西。
+   Hardware Profile 的寫法在 Day 13 的文章裡，但請當成範例而不是驗證過的配置。
 2. **內建資料庫是 lab 設定。** `dspa.yaml` 的 `mariaDB.deploy: true` 沒有備份、
    沒有 HA，pod 掛了 pipeline 紀錄與血緣就沒了。正式環境要接外部資料庫。
 3. **Grafana 匿名免登入、`insecureRegistries`、對外 Route 無防護** ——

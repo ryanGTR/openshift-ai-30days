@@ -38,5 +38,5 @@ echo "   1. manifests/connection-s3.yaml 的 CHANGE_ME（S3 帳密）"
 echo "   2. pipeline/pipeline_llm.py 的 IMAGE_DIGEST（要換成你自己 build 出來的那顆）"
 echo "   3. manifests/idms-odh-workbench.yaml 的 mirror 目的地是否真的存在"
 echo
-echo "改完先驗一次再套用："
-echo "   grep -rn 'registry.lab\\|minio.lab\\|CHANGE_ME' . || echo 'ok'"
+echo "改完先驗一次再套用（排除本腳本自己）："
+echo "   grep -rn 'registry.lab\\|minio.lab\\|CHANGE_ME' . --exclude=set-lab-host.sh --exclude=README.md || echo ok"
