@@ -42,6 +42,10 @@ grep -rn 'registry.lab\|minio.lab\|CHANGE_ME' . \
 
 **每份檔案都有一篇文章在解釋它為什麼長這樣、以及套用之後要驗什麼。**
 
+> ⏳ **文章 2026-09-01 起每天一篇陸續上線**，還沒到的那幾天連結會是 404。
+> 已經上線的可以在 <https://ryangtr.github.io> 看到。
+> **檔案本身現在就能用**，不用等文章。
+
 | Day | 主題（← 點進去看說明） | 檔案 |
 |---|---|---|
 | 5 | [DataScienceCluster](https://ryangtr.github.io/2026/09/datasciencecluster-turning-components-on/) | `manifests/dsc.yaml` |
