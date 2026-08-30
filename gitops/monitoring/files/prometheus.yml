@@ -1,0 +1,14 @@
+# Prometheus 抓取設定（k8s 版）。
+# 與 llm-from-scratch/monitoring/prometheus.yml 的差別：
+#   podman 版三個容器共享 localhost → target 是 localhost:8000
+#   k8s  版跨 pod → 必須走 Service DNS，且 port 是 Service 的 80（targetPort 8000）
+global:
+  scrape_interval: 15s        # podman 版是 5s；CRC 資源緊，拉長減少負載
+
+scrape_configs:
+  - job_name: llm-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['llm-scratch-predictor.llm-serve-demo.svc.cluster.local:80']
+        labels:
+          service: llm-scratch

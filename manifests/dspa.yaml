@@ -1,0 +1,40 @@
+# Data Science Pipelines 實例（DSPA）— 對應 Day 9
+#
+# ⚠️ lab 取捨：database 用內建 mariaDB（deploy: true）。
+#    它沒有備份、沒有 HA，pod 掛了 pipeline 紀錄與血緣就沒了。
+#    正式環境要指到外部資料庫（spec.database.externalDB）。
+apiVersion: datasciencepipelinesapplications.opendatahub.io/v1
+kind: DataSciencePipelinesApplication
+metadata:
+  name: dspa
+  namespace: llm-serve-demo
+spec:
+  dspVersion: v2
+  apiServer:
+    deploy: true
+    enableSamplePipeline: false
+  persistenceAgent:
+    deploy: true
+  scheduledWorkflow:
+    deploy: true
+  mlmd:
+    deploy: true
+  database:
+    disableHealthCheck: false
+    mariaDB:
+      deploy: true
+      pipelineDBName: mlpipeline
+      username: mlpipeline
+  objectStorage:
+    disableHealthCheck: false
+    externalStorage:
+      host: minio.lab
+      port: "9000"
+      scheme: http
+      bucket: pipelines
+      basePath: ""
+      region: us-east-1
+      s3CredentialsSecret:
+        secretName: minio-s3
+        accessKey: AWS_ACCESS_KEY_ID
+        secretKey: AWS_SECRET_ACCESS_KEY

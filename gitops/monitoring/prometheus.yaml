@@ -1,0 +1,57 @@
+# Prometheus（lab 用，單副本、無持久化）
+#
+# ⚠️ 為什麼不用 OCP 內建的 cluster monitoring：
+#    CRC 用 clusterversion override 把 cluster-monitoring-operator 設成 unmanaged
+#    （openshift-monitoring 有 0 個 pod）。要開得 crc config set enable-cluster-monitoring true
+#    再重啟 CRC，而且吃 4GB+ 記憶體。
+#    → 正式叢集請改用 user-workload monitoring + ServiceMonitor，不要照抄這份。
+#
+# ⚠️ OCP restricted-v2 SCC：不指定 runAsUser／fsGroup，讓 OCP 指派隨機 UID 與
+#    namespace range 內的 fsGroup；TSDB 寫到 emptyDir，group 可寫。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  labels: {app: prometheus}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: prometheus}
+  template:
+    metadata:
+      labels: {app: prometheus}
+    spec:
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.6.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=6h      # lab 不留長期資料
+            - --web.enable-lifecycle
+          ports:
+            - {containerPort: 9090, name: web}
+          volumeMounts:
+            - {name: config, mountPath: /etc/prometheus}
+            - {name: data, mountPath: /prometheus}
+          resources:
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 1Gi}
+          readinessProbe:
+            httpGet: {path: /-/ready, port: 9090}
+            initialDelaySeconds: 10
+      volumes:
+        - name: config
+          configMap: {name: prometheus-config}
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  labels: {app: prometheus}
+spec:
+  selector: {app: prometheus}
+  ports:
+    - {name: web, port: 9090, targetPort: 9090}

@@ -1,0 +1,16 @@
+# 訓練 image 專用（llm-from-scratch 的 .containerignore 排除了 pipeline/ 與 scripts/，
+# 那是給 serving image 用的；訓練 image 需要這兩個目錄，故另備一份）
+.venv/
+artifacts/
+data/
+notebooks/
+docs/
+tests/
+book/
+book2-edge/
+monitoring/
+registry/
+.git/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

@@ -1,0 +1,15 @@
+# Grafana datasource provisioning：指向同 namespace 的 Prometheus Service。
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    # 🔴 uid 必須顯式指定：不給的話 Grafana 會自動產一個隨機 uid
+    # （實測是 PBFA97CFB590B2093），而 dashboard JSON 裡 20 處都寫死
+    # {"type":"prometheus","uid":"prometheus"} → 對不上 → 九個面板全部查不到資料，
+    # 但 Grafana pod Running、Prometheus target up、dashboard 也看得到。
+    # 2026-08-29 實測踩到：監控「上線」了整整一天，沒有一個面板是活的。
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

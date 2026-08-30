@@ -1,0 +1,11 @@
+# 告訴 Grafana 去哪個目錄找 dashboard JSON（該目錄由 ConfigMap 掛進來）。
+apiVersion: 1
+providers:
+  - name: llm
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards

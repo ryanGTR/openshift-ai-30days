@@ -1,0 +1,24 @@
+# CPU 推論容器（KServe RawDeployment on CRC）— 對應 Day 10。
+# 與 llm-from-scratch 根目錄的 Containerfile 差異：
+#   1. torch 用 CPU wheel（cu128 版含 CUDA runtime，多 ~5GB，CRC 無 GPU 用不到）
+#   2. 加 USER 1001：非 root、群組 0 可讀（OCP restricted SCC 隨機 UID 相容）
+# build（context＝llm-from-scratch repo）：
+#   podman build -f openshift-ai-30days/images/Containerfile.cpu -t llm-serve:cpu ~/Documents/llm-from-scratch
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir fastapi "uvicorn[standard]" numpy prometheus-client
+
+COPY src/ ./src/
+COPY serve/ ./serve/
+
+# KServe storage-initializer 會把 S3 模型下載到 /mnt/models
+ENV ARTIFACTS=/mnt/models
+EXPOSE 8000
+
+RUN chgrp -R 0 /app && chmod -R g=u /app
+USER 1001
+
+CMD ["uvicorn", "serve.app:app", "--host", "0.0.0.0", "--port", "8000"]

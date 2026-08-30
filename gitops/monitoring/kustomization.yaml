@@ -1,0 +1,34 @@
+# 監控 stack（Prometheus + Grafana）——GitOps 管理的目標之一。
+# Argo CD 原生支援 kustomize，所以 ConfigMap 用 generator 從檔案生，
+# 不必把 5.6KB 的 dashboard JSON 內嵌進 YAML。
+#
+# 手動套用（GitOps 接上之前）：
+#   oc apply -k gitops/monitoring -n llm-serve-demo
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - prometheus.yaml
+  - grafana.yaml
+
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=files/prometheus.yml
+  - name: grafana-datasources
+    files:
+      - prometheus.yaml=files/grafana-datasource.yaml
+  - name: grafana-dashboard-provider
+    files:
+      - provider.yaml=files/grafana-dashboard-provider.yaml
+  - name: grafana-dashboards
+    files:
+      - llm-serving.json=files/llm-serving.json
+
+# 關掉 name suffix hash：ConfigMap 改名會讓 Deployment 找不到既有掛載，
+# lab 想要的是「改檔案 → 重啟 pod 生效」，不是每次都產生新名字。
+generatorOptions:
+  disableNameSuffixHash: true
+
+commonLabels:
+  app.kubernetes.io/part-of: llm-observability

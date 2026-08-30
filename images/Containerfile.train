@@ -1,0 +1,17 @@
+# pipeline 用的訓練／評估 image — 對應 Day 9。
+# 基於推論 image 加工（省下重裝 torch ~200MB），加上：
+#   1. boto3 —— pipeline 步驟要自己讀寫 S3（KFP container component 不代管）
+#   2. pipeline/ + scripts/ —— 訓練與評估程式
+# build（context＝llm-from-scratch repo）：
+#   podman build -f openshift-ai-30days/images/Containerfile.train -t llm-train:cpu ~/Documents/llm-from-scratch
+FROM registry.lab:8088/tools/llm-serve:cpu
+
+USER 0
+RUN pip install --no-cache-dir boto3
+
+COPY pipeline/ /app/pipeline/
+COPY scripts/ /app/scripts/
+
+RUN chgrp -R 0 /app && chmod -R g=u /app
+USER 1001
+ENV PYTHONPATH=/app

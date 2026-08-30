@@ -1,0 +1,36 @@
+# HardwareProfile — 一份工作可以要多少資源（對應 Day 13）
+#
+# ⚠️ 2.x 叫 AcceleratorProfile，3.x 改名並擴大範圍（不只加速器）。
+#    任何文件裡出現「Accelerator Profile」，那是 2.x 的材料。
+#
+# ⚠️ 順序不能反：節點上沒有 nvidia.com/gpu 這個資源，這份寫了也沒用 ——
+#    pod 會 Pending，而畫面上不會說原因。先確認：
+#      oc get nodes -o json | jq -r '.items[] | .status.allocatable | with_entries(select(.key|test("gpu")))'
+apiVersion: infrastructure.opendatahub.io/v1alpha1
+kind: HardwareProfile
+metadata:
+  name: gpu-small
+  namespace: opendatahub          # ⚠️ 要放平台的 ns，放別的地方選單不會出現
+spec:
+  displayName: "GPU Small（1 卡）"
+  identifiers:
+    - identifier: cpu
+      resourceType: CPU
+      minCount: 2
+      defaultCount: 4
+      maxCount: 8
+    - identifier: memory
+      resourceType: Memory
+      minCount: "8Gi"
+      defaultCount: "16Gi"
+      maxCount: "32Gi"
+    - identifier: nvidia.com/gpu   # ← 要跟節點上回報的資源名稱一模一樣
+      resourceType: Accelerator
+      minCount: 1
+      defaultCount: 1
+      maxCount: 1
+# ⚠️ maxCount 是真正在做治理的那個數字，而「沒被驗過的上限等於沒有上限」：
+#    故意要超過 maxCount，確認它會拒絕（Day 27 的反向測試）。
+#
+# ⚠️ 它管的是「單一 pod」。團隊配額要另外用 ResourceQuota 或 Kueue ——
+#    只設 profile 的話，一個人開十個 workbench 一樣會把卡吃光。

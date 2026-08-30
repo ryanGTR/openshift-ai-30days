@@ -1,0 +1,41 @@
+# llm-from-scratch 上 KServe RawDeployment（CRC lab）— 對應 Day 10
+# 模型：s3://models/llm/（ckpt.pt + tokenizer.json，MinIO on host:9000）
+# image：內部 registry tools/llm-serve:cpu（Containerfile.cpu，非 root）
+# storage-initializer 會把 S3 內容下載到 /mnt/models；image 內 ARTIFACTS=/mnt/models
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: llm-scratch
+  namespace: llm-serve-demo
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    serviceAccountName: llm-sa
+    containers:
+    - name: kserve-container
+      image: registry.lab:8088/tools/llm-serve:cpu
+      ports:
+      - containerPort: 8000
+        protocol: TCP
+      env:
+      - name: ARTIFACTS
+        value: /mnt/models
+      # custom container 觸發 storage-initializer 的正規做法＝STORAGE_URI env
+      - name: STORAGE_URI
+        value: s3://models/llm/
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+        initialDelaySeconds: 5
+        periodSeconds: 10
+      resources:
+        requests:
+          cpu: "500m"
+          memory: 1Gi
+        limits:
+          cpu: "2"
+          memory: 3Gi

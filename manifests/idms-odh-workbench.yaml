@@ -1,0 +1,20 @@
+# 把 ODH workbench image 從 quay.io 改導向內部 registry — 對應 Day 19。
+#
+# ⚠️ 兩個關鍵設計，驗收時要問到：
+#  1. IDMS 比對的是 **digest**——來源與鏡像端的 manifest digest 必須一致，
+#     所以 skopeo copy 要帶 --preserve-digests（不然 IDMS 不會生效，且錯誤訊息不明顯）。
+#  2. mirrorSourcePolicy: NeverContactSource
+#     ＝拉不到就失敗，**不准回頭找 quay.io**。
+#     若用預設的 AllowContactingSource，離線測試會「假成功」——實際走了外網你不會知道。
+#
+# 套用後 MCO 會更新節點的 registries.conf 並重啟 crio，CRC 單節點會短暫不可用。
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: odh-workbench-mirror
+spec:
+  imageDigestMirrors:
+    - source: quay.io/opendatahub/odh-workbench-jupyter-datascience-cpu-py312-ubi9
+      mirrors:
+        - registry.lab:8088/odh/odh-workbench-jupyter-datascience-cpu-py312-ubi9
+      mirrorSourcePolicy: NeverContactSource

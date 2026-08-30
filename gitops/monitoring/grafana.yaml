@@ -1,0 +1,70 @@
+# Grafana（lab 用，匿名免登入，無持久化）
+#
+# ⚠️ 匿名免登入只適用 lab。正式環境要走 OAuth（OCP 的 oauth-proxy sidecar）。
+# ⚠️ GF_PATHS_DATA 指到 emptyDir：Grafana 要寫 grafana.db，而 restricted-v2 給的是
+#    隨機 UID，寫不了 image 內建目錄。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels: {app: grafana}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: grafana}
+  template:
+    metadata:
+      labels: {app: grafana}
+    spec:
+      containers:
+        - name: grafana
+          image: docker.io/grafana/grafana:12.2.0
+          env:
+            - {name: GF_AUTH_ANONYMOUS_ENABLED,   value: "true"}
+            - {name: GF_AUTH_ANONYMOUS_ORG_ROLE,  value: "Admin"}
+            - {name: GF_AUTH_DISABLE_LOGIN_FORM,  value: "true"}
+            - {name: GF_PATHS_DATA,               value: "/var/lib/grafana-data"}
+            - {name: GF_ANALYTICS_REPORTING_ENABLED, value: "false"}
+            - {name: GF_ANALYTICS_CHECK_FOR_UPDATES, value: "false"}
+          ports:
+            - {containerPort: 3000, name: http}
+          volumeMounts:
+            - {name: datasources, mountPath: /etc/grafana/provisioning/datasources}
+            - {name: dashboard-provider, mountPath: /etc/grafana/provisioning/dashboards}
+            - {name: dashboards, mountPath: /etc/grafana/dashboards}
+            - {name: data, mountPath: /var/lib/grafana-data}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /api/health, port: 3000}
+            initialDelaySeconds: 15
+      volumes:
+        - name: datasources
+          configMap: {name: grafana-datasources}
+        - name: dashboard-provider
+          configMap: {name: grafana-dashboard-provider}
+        - name: dashboards
+          configMap: {name: grafana-dashboards}
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  labels: {app: grafana}
+spec:
+  selector: {app: grafana}
+  ports:
+    - {name: http, port: 3000, targetPort: 3000}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: grafana
+  labels: {app: grafana}
+spec:
+  to: {kind: Service, name: grafana}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

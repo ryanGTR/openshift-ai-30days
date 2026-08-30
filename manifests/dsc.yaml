@@ -1,0 +1,36 @@
+# DataScienceCluster — 平台元件的總開關（對應 Day 5）
+#
+# 一個叢集只有一個，cluster-scoped。裝完 operator 之後沒有這個，平台上什麼都不會有。
+#
+# ⚠️ 元件名稱在 3.x 改過（例如 datasciencepipelines → aipipelines）。
+#    照 2.x 教學貼會被拒絕，而錯誤訊息只說有個不認識的欄位。
+#    你叢集上的正確清單：oc explain dsc.spec.components
+#
+# ⚠️ 建議一開始只開你真的要用的。每個元件都是 pod、都吃資源，
+#    單節點全開很容易直接排不進去（Day 22）。
+apiVersion: datasciencecluster.opendatahub.io/v2
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    # ── 幾乎一定要開 ──────────────────────────────
+    dashboard:        { managementState: Managed }
+    workbenches:      { managementState: Managed }
+    kserve:           { managementState: Managed }
+    aipipelines:      { managementState: Managed }   # 2.x 叫 datasciencepipelines
+    # ── 看情況 ──────────────────────────────────
+    modelregistry:
+      managementState: Managed
+      registriesNamespace: odh-model-registries      # ⚠️ 實例只能建在這個 ns
+    # ── 這個 lab 沒用到，關掉省資源 ─────────────────
+    trustyai:         { managementState: Removed }
+    ray:              { managementState: Removed }
+    trainingoperator: { managementState: Removed }
+    feastoperator:    { managementState: Removed }
+    llamastackoperator: { managementState: Removed }
+# ⚠️ 套用後 status.conditions 的頂層 Ready 會是 False —— 這是正常的。
+#    Removed 的元件也算進那個 AND。要判斷健康，逐條看你開的那幾個：
+#      oc get dsc default-dsc -o json | jq -r '.status.conditions[]
+#        | select(.type|test("Dashboard|Kserve|Workbench|AIPipelines|ModelRegistry"))
+#        | "\(.type)=\(.status)"'

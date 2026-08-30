@@ -1,0 +1,390 @@
+# PIPELINE DEFINITION
+# Name: llm-lifecycle
+# Description: 從零訓練的小 GPT：資料準備→訓練→評估→放行閘門。證明模型生成流程可被平台管理。
+# Inputs:
+#    max_iters: str [Default: '300']
+#    max_val_loss: str [Default: '6.0']
+#    run_id: str [Default: 'run1']
+#    sample_mb: str [Default: '2']
+components:
+  comp-evaluate-model:
+    executorLabel: exec-evaluate-model
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+  comp-prepare-data:
+    executorLabel: exec-prepare-data
+    inputDefinitions:
+      parameters:
+        run_id:
+          parameterType: STRING
+        sample_mb:
+          parameterType: STRING
+  comp-promotion-gate:
+    executorLabel: exec-promotion-gate
+    inputDefinitions:
+      parameters:
+        max_val_loss:
+          parameterType: STRING
+        run_id:
+          parameterType: STRING
+  comp-train-model:
+    executorLabel: exec-train-model
+    inputDefinitions:
+      parameters:
+        max_iters:
+          parameterType: STRING
+        run_id:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-evaluate-model:
+      container:
+        args:
+        - '{{$.inputs.parameters[''run_id'']}}'
+        command:
+        - bash
+        - -c
+        - "set -e\nRUN_ID=\"$1\"\ncd /app && mkdir -p work/artifacts\npython - <<PY\n\
+          \nimport os, boto3, pathlib\n_s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"\
+          S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"\
+          ],\n                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nget_prefix(\"pipelines\", \"runs/$RUN_ID/\", \"/app/work/artifacts\"\
+          )\nPY\n# val \u8207 test \u90FD\u8981\u7B97\uFF1A\n#   val  \u2192 \u7D55\
+          \u5C0D\u9580\u6ABB\uFF08max_val_loss\uFF09\u7528\n#   test \u2192 registry.gate_reasons()\
+          \ \u7684\u56DE\u6B78\u6AA2\u67E5\u7528\uFF08\u5B83\u6BD4\u7684\u662F test_loss\uFF1B\
+          \u7F3A\u4E86\u6703\u5224\u300C\u7F3A test \u8A55\u4F30\u300D\uFF09\n# 03_eval.py\
+          \ \u6BCF\u6B21\u90FD\u8986\u5BEB eval_report.json\uFF0C\u6240\u4EE5\u8DD1\
+          \u5B8C\u5404\u81EA\u53E6\u5B58\uFF0C\u6700\u5F8C\u5408\u4F75\u3002\npython\
+          \ pipeline/03_eval.py --artifacts work/artifacts --eval_iters 50 --split\
+          \ val\ncp work/artifacts/eval_report.json work/artifacts/eval_val.json\n\
+          python pipeline/03_eval.py --artifacts work/artifacts --eval_iters 50 --split\
+          \ test\ncp work/artifacts/eval_report.json work/artifacts/eval_test.json\n\
+          python - <<'PY'\nimport json\nv = json.load(open(\"/app/work/artifacts/eval_val.json\"\
+          ))\nt = json.load(open(\"/app/work/artifacts/eval_test.json\"))\nmerged\
+          \ = {\n    \"val_loss\": v.get(\"val_loss\"),\n    \"test_loss\": t.get(\"\
+          test_loss\"),\n    \"perplexity\": t.get(\"perplexity\"),          # \u4EE5\
+          \ test \u70BA\u6E96\n    \"val_perplexity\": v.get(\"perplexity\"),\n  \
+          \  \"train_iter\": v.get(\"train_iter\"),\n    \"params_M\": v.get(\"params_M\"\
+          ),\n}\njson.dump(merged, open(\"/app/work/artifacts/eval_report.json\",\
+          \ \"w\"), indent=2, ensure_ascii=False)\nprint(\"eval:\", json.dumps(merged,\
+          \ ensure_ascii=False))\nPY\npython - <<PY\n\nimport os, boto3, pathlib\n\
+          _s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"S3_ENDPOINT\"],\n \
+          \                  aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"],\n\
+          \                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nput(\"/app/work/artifacts/eval_report.json\", \"pipelines\"\
+          , \"runs/$RUN_ID/eval_report.json\")\nPY\necho \"eval \u5B8C\u6210\"\n"
+        - bash
+        env:
+        - name: S3_ENDPOINT
+          value: http://minio.lab:9000
+        - name: PIPELINE_IMAGE
+          value: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+        image: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+    exec-prepare-data:
+      container:
+        args:
+        - '{{$.inputs.parameters[''run_id'']}}'
+        - '{{$.inputs.parameters[''sample_mb'']}}'
+        command:
+        - bash
+        - -c
+        - "set -e\nRUN_ID=\"$1\"; SAMPLE_MB=\"$2\"\ncd /app && mkdir -p work/artifacts\
+          \ work/data\npython - <<PY\n\nimport os, boto3, pathlib\n_s3 = boto3.client(\"\
+          s3\", endpoint_url=os.environ[\"S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"\
+          AWS_ACCESS_KEY_ID\"],\n                   aws_secret_access_key=os.environ[\"\
+          AWS_SECRET_ACCESS_KEY\"])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True,\
+          \ exist_ok=True)\n    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\"\
+          \ % (b, k))\ndef put(s, b, k):\n    _s3.upload_file(s, b, k); print(\" \
+          \ -> s3://%s/%s\" % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nget(\"models\", \"llm/clean_corpus.txt\", \"/app/work/data/corpus_full.txt\"\
+          )\nPY\nhead -c $((SAMPLE_MB * 1048576)) work/data/corpus_full.txt > work/data/input.txt\n\
+          echo \"\u53D6\u6A23\u8A9E\u6599: $(du -h work/data/input.txt | cut -f1)\"\
+          \npython pipeline/01_prepare_data.py --input work/data/input.txt --artifacts\
+          \ work/artifacts --tokenizer bpe --merges 500\n# \u8CC7\u6599\u54C1\u8CEA\
+          \u5831\u8868\uFF1Agate \u7684\u7B2C\u4E00\u9053\u6AA2\u67E5\uFF08lineage.data_quality_gate\uFF09\
+          \u8B80\u9019\u500B\u6A94\u3002\n# \u6C92\u6709\u5B83\uFF0Cregistry.gate_reasons()\
+          \ \u6703\u5224\u300C\u8CC7\u6599\u54C1\u8CEA gate \u672A\u901A\u904E\u300D\
+          \u800C\u64CB\u4E0B\u3002\npython scripts/quality_report.py --input work/data/input.txt\
+          \ --artifacts work/artifacts --label pipeline\npython - <<PY\nimport os\n\
+          \nimport os, boto3, pathlib\n_s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"\
+          S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"\
+          ],\n                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nfor f in [\"train.bin\",\"val.bin\",\"test.bin\",\"meta.json\"\
+          ,\"tokenizer.json\",\"data_report.json\",\"data_quality_report.json\"]:\n\
+          \    p = \"/app/work/artifacts/\" + f\n    if os.path.exists(p): put(p,\
+          \ \"pipelines\", \"runs/$RUN_ID/\" + f)\nPY\necho \"prepare \u5B8C\u6210\
+          \"\n"
+        - bash
+        env:
+        - name: S3_ENDPOINT
+          value: http://minio.lab:9000
+        - name: PIPELINE_IMAGE
+          value: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+        image: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+    exec-promotion-gate:
+      container:
+        args:
+        - '{{$.inputs.parameters[''run_id'']}}'
+        - '{{$.inputs.parameters[''max_val_loss'']}}'
+        command:
+        - bash
+        - -c
+        - "set -e\nRUN_ID=\"$1\"; MAX_LOSS=\"$2\"\ncd /app && mkdir -p work/artifacts\n\
+          python - <<PY\nimport json, os, sys\nsys.path.insert(0, \"/app\")\n\nimport\
+          \ os, boto3, pathlib\n_s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"\
+          S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"\
+          ],\n                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nfrom pathlib import Path\nfrom src.registry import build_entry,\
+          \ gate_reasons\n\nART = Path(\"/app/work/artifacts\")\nget_prefix(\"pipelines\"\
+          , \"runs/$RUN_ID/\", str(ART))\n\nREG_LOCAL = \"/app/work/registry.json\"\
+          \ntry:\n    get(\"models\", \"registry.json\", REG_LOCAL)\n    reg = json.load(open(REG_LOCAL))\n\
+          \    print(\"\u53F0\u5E33\u8F09\u5165\uFF1A\", len(reg), \"\u7B46\")\nexcept\
+          \ Exception:\n    reg = []\n    print(\"\u53F0\u5E33\u4E0D\u5B58\u5728 \u2192\
+          \ \u9019\u662F\u7B2C\u4E00\u7B46\uFF0C\u672C\u6B21\u70BA baseline\")\n\n\
+          entry = build_entry(ART)\nentry[\"lineage\"][\"code_image\"] = os.environ.get(\"\
+          PIPELINE_IMAGE\", \"unknown\")\nentry[\"lineage\"][\"run_id\"] = \"$RUN_ID\"\
+          \n\n# \u57FA\u6E96\uFF1D\u53F0\u5E33\u88E1\u6700\u8FD1\u4E00\u7B46\uFF08\
+          \u4E0D\u540C digest\uFF09\u3002\u7B2C\u4E00\u6B21\u8DD1\u6C92\u6709\u57FA\
+          \u6E96 \u2192 \u56DE\u6B78\u6AA2\u67E5\u81EA\u52D5\u8DF3\u904E\u3002\nothers\
+          \ = [e for e in reg if e[\"model_digest\"] != entry[\"model_digest\"]]\n\
+          baseline = sorted(others, key=lambda e: e.get(\"created_at\", \"\"))[-1]\
+          \ if others else None\n\nreasons = []\nthr = float(\"$MAX_LOSS\")\nvl =\
+          \ entry.get(\"metrics\", {}).get(\"val_loss\")\nif vl is None or float(vl)\
+          \ > thr:\n    reasons.append(\"val_loss \" + str(vl) + \" \u8D85\u904E\u9580\
+          \u6ABB \" + str(thr))\nreasons += gate_reasons(entry, baseline)      # \u8CC7\
+          \u6599\u54C1\u8CEA + \u7F3A test + \u56DE\u6B78\n\nm = entry.get(\"metrics\"\
+          , {})\nprint(\"=== promotion gate ===\")\nprint(\"  \u5019\u9078 \", entry[\"\
+          short\"], \" val_loss=\", m.get(\"val_loss\"), \" test_loss=\", m.get(\"\
+          test_loss\"))\nprint(\"  \u57FA\u6E96 \", baseline[\"short\"] if baseline\
+          \ else \"(\u7121)\",\n      \" test_loss=\", baseline.get(\"metrics\", {}).get(\"\
+          test_loss\") if baseline else \"-\")\nprint(\"  code_image \", entry[\"\
+          lineage\"][\"code_image\"])\nprint(\"  data_quality_gate \", entry[\"lineage\"\
+          ].get(\"data_quality_gate\"))\n\nif reasons:\n    for r in reasons:\n  \
+          \      print(\"  \u2717 \u64CB\u4E0B\uFF1A\", r)\n    sys.exit(1)      #\
+          \ \u4E0D\u5408\u683C\u5C31\u8B93\u9019\u4E00\u68D2\u7D05\u71C8\uFF0C\u6D41\
+          \u7A0B\u6B62\u6B65\n\nprint(\"  \u2713 \u653E\u884C\")\nreg.append(entry)\n\
+          json.dump(reg, open(REG_LOCAL, \"w\"), indent=2, ensure_ascii=False)\nput(REG_LOCAL,\
+          \ \"models\", \"registry.json\")\nput(str(ART / \"ckpt.pt\"), \"models\"\
+          , \"llm-candidate/ckpt.pt\")\nput(str(ART / \"tokenizer.json\"), \"models\"\
+          , \"llm-candidate/tokenizer.json\")\nprint(\"  \u5DF2\u8A3B\u518A\u9032\u53F0\
+          \u5E33\u4E26\u9001\u9032\u5019\u9078\u5340 s3://models/llm-candidate/\"\
+          )\nPY\n"
+        - bash
+        env:
+        - name: S3_ENDPOINT
+          value: http://minio.lab:9000
+        - name: PIPELINE_IMAGE
+          value: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+        image: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+    exec-train-model:
+      container:
+        args:
+        - '{{$.inputs.parameters[''run_id'']}}'
+        - '{{$.inputs.parameters[''max_iters'']}}'
+        command:
+        - bash
+        - -c
+        - "set -e\nRUN_ID=\"$1\"; MAX_ITERS=\"$2\"\ncd /app && mkdir -p work/artifacts\n\
+          python - <<PY\n\nimport os, boto3, pathlib\n_s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"\
+          S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"\
+          ],\n                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nget_prefix(\"pipelines\", \"runs/$RUN_ID/\", \"/app/work/artifacts\"\
+          )\nPY\npython pipeline/02_train.py --artifacts work/artifacts --max_iters\
+          \ $MAX_ITERS --run_name pipeline\npython - <<PY\nimport os\n\nimport os,\
+          \ boto3, pathlib\n_s3 = boto3.client(\"s3\", endpoint_url=os.environ[\"\
+          S3_ENDPOINT\"],\n                   aws_access_key_id=os.environ[\"AWS_ACCESS_KEY_ID\"\
+          ],\n                   aws_secret_access_key=os.environ[\"AWS_SECRET_ACCESS_KEY\"\
+          ])\ndef get(b, k, d):\n    pathlib.Path(d).parent.mkdir(parents=True, exist_ok=True)\n\
+          \    _s3.download_file(b, k, d); print(\"  <- s3://%s/%s\" % (b, k))\ndef\
+          \ put(s, b, k):\n    _s3.upload_file(s, b, k); print(\"  -> s3://%s/%s\"\
+          \ % (b, k))\ndef get_prefix(b, p, dd):\n    for o in _s3.list_objects_v2(Bucket=b,\
+          \ Prefix=p).get(\"Contents\", []):\n        if not o[\"Key\"].endswith(\"\
+          /\"):\n            get(b, o[\"Key\"], os.path.join(dd, os.path.basename(o[\"\
+          Key\"])))\n\nput(\"/app/work/artifacts/ckpt.pt\", \"pipelines\", \"runs/$RUN_ID/ckpt.pt\"\
+          )\nfor f in [\"loss_history.csv\"]:\n    p = \"/app/work/artifacts/\" +\
+          \ f\n    if os.path.exists(p): put(p, \"pipelines\", \"runs/$RUN_ID/\" +\
+          \ f)\nPY\necho \"train \u5B8C\u6210\"\n"
+        - bash
+        env:
+        - name: S3_ENDPOINT
+          value: http://minio.lab:9000
+        - name: PIPELINE_IMAGE
+          value: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+        image: registry.lab:8088/tools/llm-train@sha256:2ce7d45fadd3803fdf7c607ae1187b9516cbdee9f6831f8bf2030ff52441cc69
+        resources:
+          cpuLimit: 3.0
+          cpuRequest: 1.0
+          memoryLimit: 6.442450944
+          memoryRequest: 2.147483648
+          resourceCpuLimit: '3'
+          resourceCpuRequest: '1'
+          resourceMemoryLimit: 6Gi
+          resourceMemoryRequest: 2Gi
+pipelineInfo:
+  description: "\u5F9E\u96F6\u8A13\u7DF4\u7684\u5C0F GPT\uFF1A\u8CC7\u6599\u6E96\u5099\
+    \u2192\u8A13\u7DF4\u2192\u8A55\u4F30\u2192\u653E\u884C\u9598\u9580\u3002\u8B49\
+    \u660E\u6A21\u578B\u751F\u6210\u6D41\u7A0B\u53EF\u88AB\u5E73\u53F0\u7BA1\u7406\
+    \u3002"
+  name: llm-lifecycle
+root:
+  dag:
+    tasks:
+      evaluate-model:
+        cachingOptions: {}
+        componentRef:
+          name: comp-evaluate-model
+        dependentTasks:
+        - train-model
+        inputs:
+          parameters:
+            run_id:
+              componentInputParameter: run_id
+        taskInfo:
+          name: evaluate-model
+      prepare-data:
+        cachingOptions: {}
+        componentRef:
+          name: comp-prepare-data
+        inputs:
+          parameters:
+            run_id:
+              componentInputParameter: run_id
+            sample_mb:
+              componentInputParameter: sample_mb
+        taskInfo:
+          name: prepare-data
+      promotion-gate:
+        cachingOptions: {}
+        componentRef:
+          name: comp-promotion-gate
+        dependentTasks:
+        - evaluate-model
+        inputs:
+          parameters:
+            max_val_loss:
+              componentInputParameter: max_val_loss
+            run_id:
+              componentInputParameter: run_id
+        taskInfo:
+          name: promotion-gate
+      train-model:
+        cachingOptions: {}
+        componentRef:
+          name: comp-train-model
+        dependentTasks:
+        - prepare-data
+        inputs:
+          parameters:
+            max_iters:
+              componentInputParameter: max_iters
+            run_id:
+              componentInputParameter: run_id
+        taskInfo:
+          name: train-model
+  inputDefinitions:
+    parameters:
+      max_iters:
+        defaultValue: '300'
+        isOptional: true
+        parameterType: STRING
+      max_val_loss:
+        defaultValue: '6.0'
+        isOptional: true
+        parameterType: STRING
+      run_id:
+        defaultValue: run1
+        isOptional: true
+        parameterType: STRING
+      sample_mb:
+        defaultValue: '2'
+        isOptional: true
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.17.0
+---
+platforms:
+  kubernetes:
+    deploymentSpec:
+      executors:
+        exec-evaluate-model:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            optional: false
+            secretName: minio-s3
+            secretNameParameter:
+              runtimeValue:
+                constant: minio-s3
+        exec-prepare-data:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            optional: false
+            secretName: minio-s3
+            secretNameParameter:
+              runtimeValue:
+                constant: minio-s3
+        exec-promotion-gate:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            optional: false
+            secretName: minio-s3
+            secretNameParameter:
+              runtimeValue:
+                constant: minio-s3
+        exec-train-model:
+          secretAsEnv:
+          - keyToEnv:
+            - envVar: AWS_ACCESS_KEY_ID
+              secretKey: AWS_ACCESS_KEY_ID
+            - envVar: AWS_SECRET_ACCESS_KEY
+              secretKey: AWS_SECRET_ACCESS_KEY
+            optional: false
+            secretName: minio-s3
+            secretNameParameter:
+              runtimeValue:
+                constant: minio-s3
